@@ -1,0 +1,11 @@
+# Dependency directories
+/node_modules
+
+# Environment variables (CRITICAL)
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+/dist
+/build
