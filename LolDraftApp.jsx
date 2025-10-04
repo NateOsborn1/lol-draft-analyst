@@ -1,19 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, X, Trash2, ChevronDown, ChevronUp, Zap, Loader2, Save } from 'lucide-react';
-// Removed static top-level imports for Firebase due to "Dynamic require" error.
-// The functions will now be loaded dynamically inside the useEffect and other functions.
+// The following Firebase imports are still dynamic and loaded inside the useEffect hooks.
 
-// --- Global Constants from Canvas Environment ---
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+// --- Global Constants read from Vercel/Vite Environment ---
+
+const appId = import.meta.env.VITE_APP_ID || 'lol-draft-prod-host'; 
+const GEMINI_API_KEY_VALUE = import.meta.env.VITE_GEMINI_API_KEY || ''; // This holds the actual API key
+
+const firebaseConfig = {
+  // These objects are constructed from the environment variables you set in Vercel.
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID_CONFIG,
+};
 
 // The single ID for the shared draft document
 const DRAFT_DOC_ID = 'main-team-draft';
 
 // Gemini API Configuration
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=";
-const API_KEY = ""; // Canvas provides this dynamically
+
 
 const LoLDraftApp = () => {
   const [activeTab, setActiveTab] = useState('draft');
@@ -53,10 +62,16 @@ const LoLDraftApp = () => {
   // --- Firebase Initialization and Auth ---
   useEffect(() => {
     const initializeFirebase = async () => {
+      // Check if essential Firebase config exists before initialization
+      if (!firebaseConfig.apiKey) {
+        console.error("Firebase configuration is missing. Please set VITE_FIREBASE_* environment variables.");
+        return;
+      }
+
       try {
         // Dynamically import core Firebase functions
         const { initializeApp } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js');
-        const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js');
+        const { getAuth, signInAnonymously, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js');
         const { getFirestore } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
         
         const app = initializeApp(firebaseConfig);
@@ -67,11 +82,8 @@ const LoLDraftApp = () => {
 
         const unsubscribe = onAuthStateChanged(userAuth, async (user) => {
           if (!user) {
-            if (initialAuthToken) {
-              await signInWithCustomToken(userAuth, initialAuthToken);
-            } else {
-              await signInAnonymously(userAuth);
-            }
+            // On Vercel hosting, we simply sign in anonymously.
+            await signInAnonymously(userAuth);
           }
           setUserId(userAuth.currentUser?.uid || 'anonymous');
           setIsAuthReady(true);
@@ -187,7 +199,7 @@ const LoLDraftApp = () => {
     setEnemyTeam(enemyTeam.map(p => ({ ...p, champion: '', notes: '' })));
     setGameplan('');
     setStrengths('');
-    setWeaknesses('');
+    setWeaknesses(''); // FIX: Changed 'weaknesses('');' to 'setWeaknesses('');' in previous step
   };
 
   // --- Map Drag Logic ---
@@ -220,6 +232,12 @@ const LoLDraftApp = () => {
 
   // --- Gemini API Call for Analysis ---
   const runAnalysis = async () => {
+    // CRITICAL FIX: Check for the Vercel-loaded key value
+    if (!GEMINI_API_KEY_VALUE) {
+        setAnalysisError("Gemini API Key is missing. Please set the VITE_GEMINI_API_KEY environment variable in Vercel.");
+        return;
+    }
+
     const allPicks = [...allyTeam, ...enemyTeam].filter(p => p.champion.trim() !== '');
 
     if (allPicks.length < 10) {
@@ -262,14 +280,18 @@ Structure your response strictly into three sections, using the bolded capitaliz
     };
 
     try {
-      const response = await fetch(GEMINI_API_URL + API_KEY, {
+      // CRITICAL FIX: Use the Vercel-loaded key value here
+      const response = await fetch(GEMINI_API_URL + GEMINI_API_KEY_VALUE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Log the response text for better debugging if the status is bad (e.g. 400 or 403)
+        const errorBody = await response.text();
+        console.error("API Error Body:", errorBody);
+        throw new Error(`HTTP error! status: ${response.status}. See console for API error details.`);
       }
 
       const result = await response.json();
@@ -298,7 +320,7 @@ Structure your response strictly into three sections, using the bolded capitaliz
 
     } catch (e) {
       console.error("Gemini API call failed:", e);
-      setAnalysisError(`Failed to get analysis. Check console for details. Ensure all champion names are correct.`);
+      setAnalysisError(`Failed to get analysis. Check console for details. Ensure all champion names are correct. Error: ${e.message}`);
     } finally {
       setIsAnalyzing(false);
     }
