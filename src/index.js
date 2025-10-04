@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import LoLDraftApp from './LoLDraftApp.jsx';
+// FIX: Explicitly use the file extension in the import path.
+import LoLDraftApp from './LoLDraftApp.jsx'; 
 import './index.css'; 
 
 // This creates the root and renders your component into the element with id="root"
