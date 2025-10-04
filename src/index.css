@@ -1,0 +1,21 @@
+/* Inject Tailwind's base styles here */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Apply Inter font globally */
+body {
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom styles for the app */
+/* Hide the scrollbar for aesthetic purposes */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
